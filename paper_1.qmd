@@ -1,0 +1,1185 @@
+---
+title: "paper_1"
+author: "Ana Donate"
+format: html
+editor: visual
+theme: journal
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Set CRAN mirror
+
+```{r}
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+```
+
+## Install Packages
+
+```{r}
+
+install.packages("palmerpenguins")
+install.packages("dplyr") 
+install.packages("readr") 
+install.packages("readxl") 
+install.packages("haven") 
+install.packages("writexl") 
+install.packages("tidyverse")
+install.packages("quarto")
+
+```
+
+## Library
+
+```{r}
+
+library("ggplot2")
+library("dplyr")
+library("writexl")
+library("lubridate")
+library("readxl")
+library("readr")
+library("haven")
+library("tidyverse")
+library("palmerpenguins")
+```
+
+# Varibles and Observations
+
+## Loading .csv data
+
+```{r}
+baseline <- read.csv("data/EMA_Baseline.csv")
+```
+
+## Total potential participants in the data set
+
+```{r}
+entered <- n_distinct(baseline$id)
+```
+
+## People who met the criteria
+
+```{r}
+
+eligible_participants <- baseline %>%
+  group_by(id) %>%
+  filter(age >= 18, age <= 65, danish == "1" , phone == "1", otherdrugs == "0", cannabis == "2", consentbox == "1"
+) %>%
+  summarise () %>%
+  pull(id)
+```
+
+```{r}
+eligible <- length(eligible_participants)
+eligible
+
+```
+
+## People who meet the criteria and finish the baseline
+
+```{r}
+baseline_participants <- baseline %>%
+   group_by(id) %>%
+  filter(age >= 18, age <= 65, danish == "1" , phone == "1", otherdrugs == "0", cannabis == "2", consentbox == "1", onboarding_video_complete == "2"
+) %>%
+  summarise () %>%
+  pull(id)
+```
+
+```{r}
+
+baseline_complete <- length(baseline_participants)
+baseline_complete
+```
+
+## Summary Table (entered, eligibility and baseline)
+
+```{r}
+
+# Define the number of participants for each stage
+met_criteria <- length(eligible_participants)
+finish_baseline <- length(baseline_participants)
+
+# Create the summary table with correct attrition rate calculation
+participants_summary_table <- tibble(
+  entered = entered,
+  finish_baseline = finish_baseline,
+  stoped_baseline = met_criteria - finish_baseline,
+  attrition_rate = ((met_criteria - finish_baseline) / met_criteria) * 100
+)
+
+# Print the summary table
+participants_summary_table
+
+# Save the table to an Excel file
+write_xlsx(participants_summary_table, "participants_summary_table.xlsx")
+
+
+```
+
+# Demographics
+
+### Age
+
+```{r}
+# Step 1: Filter the dataset to include only participants who met all criteria
+eligible_data <- baseline %>%
+  filter(
+    age >= 18, age <= 65,
+    danish == "1",
+    phone == "1",
+    otherdrugs == "0",
+    cannabis == "2",
+    consentbox == "1",
+    onboarding_video_complete == "2"
+  )
+
+# Check if eligible_data is a data frame and has rows
+print(class(eligible_data))  
+print(nrow(eligible_data))    
+
+# Step 2: Calculate mean and standard deviation of age
+if (nrow(eligible_data) > 0) {
+  age_stats <- eligible_data %>%
+    summarise(
+      mean_age = mean(age, na.rm = TRUE),
+      sd_age = sd(age, na.rm = TRUE),
+      min_age = min(age, na.rm = TRUE),
+      max_age = max(age, na.rm = TRUE)
+    )
+  # View the result
+  age_stats
+} else {
+  print("No participants met the criteria.")
+}
+
+```
+
+```{r}
+
+# Step 2: Remove the specific participant by ID
+exclude_id <- "154"  # Replace with the actual ID of the participant to exclude
+eligible_data <- eligible_data %>%
+  filter(id != exclude_id)  # Exclude the participant by their ID
+
+# Check if eligible_data is a data frame and has rows after exclusion
+print(class(eligible_data))  
+print(nrow(eligible_data))  
+```
+
+
+
+### Education
+
+```{r}
+
+# Define descriptive labels for each education category
+education_labels <- c(
+  "0" = "Primary school, middle school, lower secondary school",
+  "1" = "Basic vocational training or basic vocational education (e.g., EFG, EGU, or HG)",
+  "2" = "Secondary education (e.g., general high school, HHX, HTX, HF)",
+  "3" = "Vocational education (e.g., crafts, social and healthcare helper)",
+  "4" = "Short higher education (e.g., graphic designer, social and healthcare assistant)",
+  "5" = "Medium-length higher education (e.g., teacher, nurse)",
+  "6" = "Long higher education (e.g., lawyer, doctor, high school teacher)",
+  "7" = "None",
+  "8" = "Other {other_education}",
+  "9" = "Don't know",
+  "10" = "I prefer not to answer"
+)
+
+# Recode the d_education column with descriptive labels
+eligible_data <- eligible_data %>%
+  mutate(d_education = recode(d_education, !!!education_labels))
+
+# Create the updated education table with descriptive labels
+education_table <- eligible_data %>%
+  count(d_education) %>%
+  rename(Frequency = n)
+
+# View the updated education table
+education_table
+
+```
+
+### Gender
+
+Participants divided by gender (female, male and non-binary).
+
+```{r}
+eligible_data$d_identificerer <- unlist(eligible_data$d_identificerer)
+
+eligible_data$d_identificerer <- as.factor(eligible_data$d_identificerer)
+
+gender_table <- eligible_data %>%
+  count(d_identificerer)  %>%
+  rename(Frequency = n)
+
+gender_table 
+```
+
+### Living situation
+
+Living situation of the participants (they could select more than one category).
+
+```{r}
+# Define the columns to be included in the summarization
+living_columns <- c("d_bor___0", "d_bor___1", "d_bor___2", "d_bor___3", 
+                    "d_bor___4", "d_bor___5", "d_bor___6", "d_bor___7", 
+                    "d_bor___8", "d_bor___9", "andet_bor")
+
+
+# Define mapping of column names to descriptive labels
+living_labels <- c(
+  "d_bor___0" = "I live alone",
+  "d_bor___1" = "My children/child",
+  "d_bor___2" = "My parents",
+  "d_bor___3" = "My grandparents",
+  "d_bor___4" = "My spouse/partner",
+  "d_bor___5" = "My siblings or other family members",
+  "d_bor___6" = "My friends",
+  "d_bor___7" = "My housemates",
+  "d_bor___8" = "Others {other_living}",
+  "d_bor___9" = "I do not wish to answer",
+  "andet_bor" = "Other living situation"
+)
+
+# Summarize and pivot the data
+living_table <- eligible_data %>%
+  summarise(across(all_of(living_columns), ~ sum(. == 1, na.rm = TRUE))) %>%
+  pivot_longer(cols = everything(), names_to = "Living", values_to = "Frequency") %>%
+  # Replace column names with descriptive labels
+  mutate(Living = recode(Living, !!!living_labels))
+
+# View the updated table with descriptive labels
+living_table
+
+
+
+```
+
+### Location distribution
+
+Which area of Denmark the participant live based on their zip-code.
+
+```{r}
+# Create categories based on zip code ranges, including NA as a separate category
+eligible_data <- eligible_data %>%
+  mutate(
+    zip_category = case_when(
+      is.na(d_postnummer) ~ "Unknown/NA",  # Handle missing values
+      d_postnummer >= 0 & d_postnummer <= 999 ~ "Special Postal Codes",
+      d_postnummer >= 1000 & d_postnummer <= 2999 ~ "Copenhagen and Surrounding Area",
+      d_postnummer >= 3000 & d_postnummer <= 3699 ~ "North Zealand",
+      d_postnummer >= 3700 & d_postnummer <= 3799 ~ "Bornholm",
+      d_postnummer >= 3800 & d_postnummer <= 3899 ~ "Formerly Faroe Islands",
+      d_postnummer >= 3900 & d_postnummer <= 3999 ~ "Greenland",
+      d_postnummer >= 4000 & d_postnummer <= 4999 ~ "Zealand, Lolland-Falster, Møn",
+      d_postnummer >= 5000 & d_postnummer <= 5999 ~ "Funen and Surrounding Islands",
+      d_postnummer >= 6000 & d_postnummer <= 9999 ~ "Jutland",
+      TRUE ~ "Unknown"  # Catch any unexpected values outside defined ranges
+    )
+  )
+
+# Count the number of participants in each zip code category, including NA
+zip_category_counts <- eligible_data %>%
+  count(zip_category) %>%
+  rename(Frequency = n)
+
+# Count the number of participants in each zip code category, including NA, and calculate percentage
+zip_category_counts <- eligible_data %>%
+  count(zip_category) %>%
+  rename(Frequency = n) %>%
+  mutate(Percentage = round((Frequency / sum(Frequency)) * 100, 2))  # Add percentage column
+
+# View the table with Frequency and Percentage columns
+zip_category_counts
+
+```
+
+### Recruitment
+
+Participant report where do they found the research project.
+
+```{r}
+# Load dplyr if not already loaded
+library(dplyr)
+
+# Define descriptive labels for each recruitment source
+recruitment_labels <- c(
+  "0" = "Facebook group",
+  "1" = "Reddit",
+  "2" = "Flyer in a store",
+  "3" = "Other social media",
+  "4" = "Friends",
+  "5" = "Family",
+  "7" = "North Grow (Copenhagen Cannabis Expo)",
+  "8" = "Christiania's App",
+  "9" = "Podcasts",
+  "10" = "Other {other_recruitment}"
+)
+
+# Recode the d_recruitment column with descriptive labels
+eligible_data <- eligible_data %>%
+  mutate(d_recruitment = recode(d_recruitment, !!!recruitment_labels))
+
+# Create the recruitment table with descriptive labels
+recruitment_table <- eligible_data %>%
+  count(d_recruitment) %>%
+  rename(Frequency = n)
+
+# View the updated recruitment table
+recruitment_table
+
+```
+
+### Diagnosis
+
+List of all diagnosis and summary of the participants that selected (they could have selected more than one).
+
+```{r}
+
+# Load the necessary packages
+library(dplyr)
+library(tidyr)
+
+# Define diagnosis columns
+diagnosis_columns <- c(
+  "d_diagnosis___0", "d_diagnosis___1", "d_diagnosis___2", 
+  "d_diagnosis___3", "d_diagnosis___4", "d_diagnosis___5", 
+  "d_diagnosis___6", "d_diagnosis___7", "d_diagnosis___8", 
+  "d_diagnosis___9", "d_diagnosis___10", "d_diagnosis___11",
+  "d_diagnosis___12", "d_diagnosis___13", "d_diagnosis___14", 
+  "d_otherdiagnosis"
+)
+
+# Check for missing columns
+missing_cols <- setdiff(diagnosis_columns, colnames(eligible_data))
+if (length(missing_cols) > 0) {
+  stop(paste("The following columns are missing from eligible_data:", paste(missing_cols, collapse = ", ")))
+}
+
+# Define new names for the columns
+new_diagnosis_names <- c(
+  "d_diagnosis___0" = "Never received a psychiatric diagnosis",
+  "d_diagnosis___1" = "Dysthymia",
+  "d_diagnosis___2" = "Depression",
+  "d_diagnosis___3" = "Bipolar disorder",
+  "d_diagnosis___4" = "Social anxiety",
+  "d_diagnosis___5" = "Generalized anxiety",
+  "d_diagnosis___6" = "Obsessive-compulsive disorder (OCD)",
+  "d_diagnosis___7" = "Post-traumatic stress disorder (PTSD)",
+  "d_diagnosis___8" = "Attention deficit hyperactivity disorder (ADHD)",
+  "d_diagnosis___9" = "Other behavioral difficulties (Conduct disorder (CD), Oppositional defiant disorder (ODD))",
+  "d_diagnosis___10" = "Psychotic disorders (e.g., schizophrenia)",
+  "d_diagnosis___11" = "Personality disorders (e.g., narcissistic personality disorder, borderline personality disorder)",
+  "d_diagnosis___12" = "Eating disorder (e.g., anorexia, bulimia)",
+  "d_diagnosis___13" = "Substance dependence (e.g., alcohol, drugs)",
+  "d_diagnosis___14" = "Other:"
+)
+
+# Ensure that diagnosis columns are numeric (required for sum operation)
+eligible_data[diagnosis_columns] <- lapply(eligible_data[diagnosis_columns], function(x) as.numeric(as.character(x)))
+
+# Summarize the number of participants who received each diagnosis
+diagnosis_summary_check <- eligible_data %>%
+  summarise(across(all_of(diagnosis_columns), ~ sum(. == 1, na.rm = TRUE)))
+
+# Convert the summary data from wide to long format
+diagnosis_summary <- diagnosis_summary_check %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "Diagnosis",
+    values_to = "Frequency"
+  )
+
+# Replace diagnosis column codes with descriptive names
+diagnosis_summary <- diagnosis_summary %>%
+  mutate(Diagnosis = recode(Diagnosis, !!!new_diagnosis_names))
+
+# Print the final diagnosis summary table
+print(diagnosis_summary)
+
+```
+
+### Origin
+
+Information about the ethnic background of the participant.
+
+```{r}
+
+origin_columns <- c(
+  "d_origin___0",  "d_origin___1",  "d_origin___2",  "d_origin___3",  "d_origin___4"
+)
+
+missing_cols <- setdiff(origin_columns, colnames(eligible_data))
+if (length(missing_cols) > 0) {
+  stop(paste("The following columns are missing from eligible_data:", paste(missing_cols, collapse = ", ")))
+}
+
+origin_table <- eligible_data %>%
+  summarise(across(all_of(origin_columns), ~ sum(. == 1, na.rm = TRUE))) %>%
+  pivot_longer(cols = everything(), names_to = "Origin", values_to = "Frequency")
+
+
+origin_table
+
+# Define descriptive names for origin categories
+new_origin_names <- c(
+  "d_origin___0" = "No",
+  "d_origin___1" = "Yes, myself",
+  "d_origin___2" = "Yes, my mother",
+  "d_origin___3" = "Yes, my father",
+  "d_origin___4" = "I do not know"
+)
+
+# Summarize and pivot the origin columns
+origin_table <- eligible_data %>%
+  summarise(across(all_of(origin_columns), ~ sum(. == 1, na.rm = TRUE))) %>%
+  pivot_longer(cols = everything(), names_to = "Origin", values_to = "Frequency") %>%
+  mutate(Origin = recode(Origin, !!!new_origin_names))
+
+# View the updated origin_table with descriptive labels
+origin_table
+
+
+```
+
+### Occupation
+
+Current occupation of the participant.
+
+```{r}
+# Load dplyr if not already loaded
+library(dplyr)
+
+# Define descriptive labels for each situation status
+situation_labels <- c(
+  "1" = "Has paid employment",
+  "2" = "Is in education",
+  "3" = "Is unemployed and actively seeking a job",
+  "4" = "Is unemployed and wants a job but is not actively seeking",
+  "5" = "Is temporarily/chronically ill or disabled",
+  "6" = "Is retired/receiving early retirement pension",
+  "7" = "Is doing compulsory military service or alternative civil service",
+  "8" = "Does household work, cares for children or others",
+  "9" = "Other. Specify {other_situation}",
+  "10" = "Does not wish to answer",
+  "11" = "Does not know"
+)
+
+# Recode the d_situation column with descriptive labels
+eligible_data <- eligible_data %>%
+  mutate(d_situation = recode(d_situation, !!!situation_labels))
+
+# Create the occupation table with descriptive labels
+occupation_table <- eligible_data %>%
+  count(d_situation) %>%
+  rename(Frequency = n)
+
+# View the updated occupation table
+occupation_table
+
+
+```
+
+### Income
+
+Current income of the participant is provided by:
+
+```{r}
+# Define descriptive labels for each income source
+income_labels <- c(
+  "1" = "Paid work",
+  "2" = "Student grant (SU)",
+  "3" = "Unemployment benefits",
+  "4" = "Cash assistance",
+  "5" = "Educational assistance",
+  "6" = "Pension {other_type_pension}",
+  "7" = "Cash assistance",
+  "8" = "Sickness benefits",
+  "9" = "On sick leave",
+  "10" = "Supported by partner/family",
+  "11" = "Other {other_type_other}",
+  "12" = "Prefer not to answer",
+  "13" = "Don't know"
+)
+
+# Recode the d_income column with descriptive labels
+eligible_data <- eligible_data %>%
+  mutate(d_income = recode(d_income, !!!income_labels))
+
+# Create the income table with descriptive labels
+income_table <- eligible_data %>%
+  count(d_income) %>%
+  rename(Frequency = n)
+
+# View the updated income table
+income_table
+
+```
+
+# Baseline
+
+## Nicotine
+
+### Use of nicotine in life:
+
+```{r}
+nicotine_labels <- c(
+  "0" = "No",
+  "1" = "Yes"
+)
+
+# Recode the d_income column with descriptive labels
+eligible_data <- eligible_data %>%
+  mutate(ni_brugt = recode(ni_brugt, !!!nicotine_labels))
+
+# Create the income table with descriptive labels
+nicotine_table <- eligible_data %>%
+  count(ni_brugt) %>%
+  rename(Frequency = n)
+
+# View the updated income table
+nicotine_table
+
+```
+
+### First use of nicotine in life (age)
+
+```{r}
+# Calculate the mean age of first nicotine use
+mean_age_first_nicotine <- eligible_data %>%
+  summarise(mean_age_first_use = mean(ni_age, na.rm = TRUE))
+
+# View the result
+mean_age_first_nicotine
+
+```
+
+### Type of Nicotine last 30 days
+
+Nicotine last 30 days (types: cigarette, e-cigarette or vape or pufbar, snus, pipe or bong, other, I did not use nicotine products last 30 days).
+
+```{r}
+# Define the columns for types of nicotine
+nicotine_columns <- paste0("types_nicotine___", 1:6)
+
+# Define mapping for descriptive labels
+nicotine_labels <- c(
+  "types_nicotine___1" = "Cigarette",
+  "types_nicotine___2" = "E-cigarette or vape or pufbar",
+  "types_nicotine___3" = "Snus",
+  "types_nicotine___4" = "Narguile",
+  "types_nicotine___5" = "Other",
+  "types_nicotine___6" = "I did not use nicotine products last 30 days"
+)
+
+# Summarize the frequency of each type of nicotine used in the last 30 days
+nicotine_usage_summary <- eligible_data %>%
+  summarise(across(all_of(nicotine_columns), ~ sum(. == 1, na.rm = TRUE))) %>%
+  pivot_longer(cols = everything(), names_to = "Nicotine_Type", values_to = "Frequency") %>%
+  # Apply descriptive labels
+  mutate(Nicotine_Type = recode(Nicotine_Type, !!!nicotine_labels))
+
+# View the updated table with descriptive labels
+nicotine_usage_summary
+
+
+```
+
+### Days of nicotine use last 30 days
+
+How many days did you smoke nicotine last month (30 days)
+
+Cigarette
+
+```{r}
+library(dplyr)
+
+# Calculate the mean number of cigarettes used in the last 30 days for participants who used cigarettes
+mean_cigarette_days <- eligible_data %>%
+  filter(types_nicotine___1 == 1) %>%  # Filter only those who used cigarettes
+  summarise(mean_cigarette_days = mean(cigaretter_30, na.rm = TRUE))  # Adjust column name if necessary
+
+# View the result
+mean_cigarette_days
+
+```
+
+E-cigarette, vape or pufbar
+
+```{r}
+
+
+mean_ecigarette_days <- eligible_data %>%
+  filter(types_nicotine___2 == 1) %>%  # Filter only those who used cigarettes
+  summarise(mean_ecigarette_days = mean(ecigaretter_30, na.rm = TRUE))  # Adjust column name if necessary
+
+
+# View the result
+mean_ecigarette_days
+
+```
+
+Snus
+
+```{r}
+
+
+mean_snus_days <- eligible_data %>%
+  filter(types_nicotine___3 == 1) %>%  # Filter only those who used cigarettes
+  filter(snus_30 <= 30) %>%  # Remove unrealistic values (e.g., days > 30)
+  summarise(mean_snus_days = mean(snus_30, na.rm = TRUE))  # Adjust column name if necessary
+
+
+# View the result
+mean_snus_days
+```
+
+Other
+
+```{r}
+
+mean_other_days <- eligible_data %>%
+  filter(types_nicotine___5 == 1) %>%  # Filter only those who used cigarettes
+  summarise(mean_other_days = mean(andet_30, na.rm = TRUE))  # Adjust column name if necessary
+
+
+# View the result
+mean_other_days
+
+```
+
+### Fargerstroms (total score for each participant and mean score)
+
+```{r}
+
+# Step 1: Create nicotine_problem_score column
+fargerstroms_data <- eligible_data %>%
+  mutate(across(starts_with("fargerstroms_"), as.numeric)) %>%
+  mutate(nicotine_problem_score = rowSums(select(., fargerstroms_1:fargerstroms_6), na.rm = TRUE))
+
+# Step 2: Calculate the mean of nicotine_problem_score
+mean_nicotine_problem_score <- fargerstroms_data %>%
+  summarise(mean_nicotine_problem_score = mean(nicotine_problem_score, na.rm = TRUE))
+
+# View the mean nicotine problem score
+mean_nicotine_problem_score
+
+```
+
+## Alcohol
+
+### Alcohol in life
+
+```{r}
+
+alcohol_labels <- c(
+  "0" = "No",
+  "1" = "Yes"
+)
+
+# Re-code the alcohol_life column with descriptive labels
+eligible_data <- eligible_data %>%
+  mutate(alcohol_life = recode(alcohol_life, !!!alcohol_labels))
+
+# Create the income table with descriptive labels
+alcohol_table <- eligible_data %>%
+  count(alcohol_life) %>%
+  rename(Frequency = n)
+
+# View the updated income table
+alcohol_table
+
+```
+
+### Alcohol last 30 days
+
+```{r}
+
+alcohol30_labels <- c(
+  "0" = "No",
+  "1" = "Yes"
+)
+
+# Re-code the alcohol_life column with descriptive labels
+eligible_data <- eligible_data %>%
+  mutate(alcohol_yn_30d = recode(alcohol_30, !!!alcohol30_labels))
+
+# Create the income table with descriptive labels
+alcohol30_table <- eligible_data %>%
+  count(alcohol_yn_30d) %>%
+  rename(Frequency = n)
+
+# View the updated income table
+alcohol30_table
+```
+
+### AUDIT (total score)
+
+```{r}
+# Ensure each audit-c question column is numeric and calculate the alcohol problem score
+audit_data <- eligible_data %>%
+  mutate(across(starts_with("audit_"), as.numeric)) %>%
+  mutate(alcohol_problem_score = rowSums(select(., audit_1:audit_10), na.rm = TRUE))
+
+# View the updated data with the new alcohol_problem_score column
+head(audit_data)
+
+```
+
+### AUDIT-C (mean)
+
+```{r}
+
+# Step 2: Calculate the mean of nicotine_problem_score
+alcohol_problem_score <- audit_data %>%
+  summarise(alcohol_problem_score = mean(alcohol_problem_score, na.rm = TRUE))
+
+# View the mean nicotine problem score
+alcohol_problem_score
+
+```
+
+## Cannabis Use
+
+First use in life (age)
+
+```{r}
+# Calculate the mean age of first nicotine use
+cannabis_first_mean <- eligible_data %>%
+  summarise(cannabis_first_mean = mean(cannabis_first, na.rm = TRUE))
+
+# View the result
+cannabis_first_mean
+
+```
+
+cannabis types - 30 days All the types the participant has had used last 30 days.
+
+```{r}
+# Define the columns for types of cannabis
+cannabis_columns <- paste0("cannabis_type30___", 1:7)
+
+
+# Define descriptive labels for each type of cannabis
+cannabis_labels <- c(
+  "cannabis_type30___1" = "Hash",
+  "cannabis_type30___2" = "Pot",
+  "cannabis_type30___3" = "Skunk",
+  "cannabis_type30___4" = "Legal cannabis (less than 0.2% THC): {type}",
+  "cannabis_type30___5" = "Cannabis prescription (e.g., Bedrocan, Bediol): {type}",
+  "cannabis_type30___6" = "Other cannabis type, smoked or inhaled {other cannabis}",
+  "cannabis_type30___7" = "Unknown type"
+)
+
+# Summarize the frequency of each type of cannabis used
+cannabis_usage_summary <- eligible_data %>%
+  summarise(across(all_of(cannabis_columns), ~ sum(. == 1, na.rm = TRUE))) %>%
+  pivot_longer(cols = everything(), names_to = "Cannabis_Type", values_to = "Frequency") %>%
+  # Apply descriptive labels
+  mutate(Cannabis_Type = recode(Cannabis_Type, !!!cannabis_labels))
+
+# View the table with descriptive labels and frequencies for each type of cannabis
+cannabis_usage_summary
+
+
+```
+
+cannabis types last 30 days
+
+```{r}
+
+```
+
+CUDIT-R
+
+```{r}
+library(dplyr)
+
+# Ensure each cudit question column is numeric and calculate the cannabis problems score
+cudit_data <- eligible_data %>%
+  mutate(across(starts_with("cu_"), as.numeric)) %>%
+  mutate(cannabis_problem = rowSums(select(., cu_1:cu_8), na.rm = TRUE))
+
+# View the updated data with the new cannabis_problem_column column
+head(cudit_data)
+
+```
+
+### CUDIT-R (mean)
+
+```{r}
+
+library(dplyr)
+
+# Ensure each CUDIT question column is numeric and calculate the cannabis problems score
+cudit_data <- eligible_data %>%
+  mutate(across(starts_with("cu_"), as.numeric)) %>%
+  mutate(cannabis_problem = rowSums(select(., cu_1:cu_8), na.rm = TRUE))
+
+# View the updated data with the new cannabis_problem column
+head(cudit_data)
+
+# Step 2: Calculate the mean, minimum, maximum, and standard deviation of cannabis_problem_score
+cannabis_problem_stats <- cudit_data %>%
+  summarise(
+    mean_cannabis_problem = mean(cannabis_problem, na.rm = TRUE),
+    min_cannabis_problem = min(cannabis_problem, na.rm = TRUE),
+    max_cannabis_problem = max(cannabis_problem, na.rm = TRUE),
+    sd_cannabis_problem = sd(cannabis_problem, na.rm = TRUE)
+  )
+
+# View the statistics for the cannabis problem score
+cannabis_problem_stats
+
+library(dplyr)
+
+# Identify participants with a cannabis_problem score of 0
+participants_with_zero_score <- cudit_data %>%
+  filter(cannabis_problem == 0)
+
+# View the participants who scored 0
+head(participants_with_zero_score)
+
+
+
+
+```
+
+## Cannabis (motives)
+
+"One can use cannabis recreationally, i.e., for fun or enjoyment, and one can also use cannabis medically, i.e., to manage a condition. How would you describe your cannabis use?"
+
+```{r}
+
+# Define descriptive labels for each motive
+motive_labels <- c(
+  "1" = "Recreational",
+  "2" = "Medical",
+  "3" = "Both recreational and medical",
+  "4" = "Don't know"
+)
+
+# Summarize the frequency of each cannabis motive
+cannabis_motive_summary <- eligible_data %>%
+  mutate(motives_cannabis = as.character(motives_cannabis)) %>%  # Convert to character for recoding
+  mutate(motives_cannabis = recode(motives_cannabis, !!!motive_labels)) %>%
+  count(motives_cannabis) %>%
+  rename(Motive = motives_cannabis, Frequency = n)
+
+# View the summary table
+cannabis_motive_summary
+
+
+
+```
+
+Counseling (in the past) "Have you ever received counseling or treatment for your cannabis use?"
+
+```{r}
+# Define descriptive labels for each response
+treatment_labels <- c(
+  "0" = "No, I have never received it",
+  "1" = "Yes, I am currently receiving it",
+  "2" = "Yes, I have received it in the past"
+)
+
+# Summarize the frequency of each treatment response
+cannabis_treatment_summary <- eligible_data %>%
+  mutate(ca_modtaget = as.character(ca_modtaget)) %>%  # Convert to character for recoding
+  mutate(ca_modtaget = recode(ca_modtaget, !!!treatment_labels)) %>%
+  count(ca_modtaget) %>%
+  rename(Treatment_Status = ca_modtaget, Frequency = n)
+
+# View the summary table
+cannabis_treatment_summary
+
+
+```
+
+## Cannabis (past attempt to stop)
+
+```{r}
+# Define descriptive labels for each response
+attempt_labels <- c(
+  "1" = "Yes, I have tried to reduce my use, but not stop",
+  "2" = "Yes, I have tried to stop using cannabis",
+  "0" = "No, I have never tried to reduce or stop using cannabis"
+)
+
+# Summarize the frequency of each attempt response
+cannabis_attempt_summary <- eligible_data %>%
+  mutate(ca_reduce = as.character(ca_reduce)) %>%  # Convert to character for recoding
+  mutate(ca_reduce = recode(ca_reduce, !!!attempt_labels)) %>%
+  count(ca_reduce) %>%
+  rename(Attempt_Status = ca_reduce, Frequency = n)
+
+# View the summary table
+cannabis_attempt_summary
+
+```
+
+Plans for the future
+
+```{r}
+# Define descriptive labels for each response
+plans_labels <- c(
+  "1" = "Yes, I am currently trying to reduce my use, but not stop",
+  "2" = "Yes, I am currently trying to stop",
+  "0" = "No, I am not trying to reduce or stop using cannabis"
+)
+
+# Summarize the frequency of each plan response
+cannabis_plans_summary <- eligible_data %>%
+  mutate(ca_plans = as.character(ca_plans)) %>%  # Convert to character for recoding
+  mutate(ca_plans = recode(ca_plans, !!!plans_labels)) %>%
+  count(ca_plans) %>%
+  rename(Plan_Status = ca_plans, Frequency = n)
+
+# View the summary table
+cannabis_plans_summary
+
+```
+
+## Other drugs
+
+Have you ever tried other drugs besides cannabis?
+
+```{r}
+# Define descriptive labels for each response
+other_drugs_labels <- c(
+  "1" = "Yes, but only once",
+  "2" = "Yes, more than once",
+  "0" = "No, never"
+)
+
+# Summarize the frequency of each response
+other_drug_summary <- eligible_data %>%
+  mutate(provetandre = as.character(provetandre)) %>%  # Convert to character for recoding
+  mutate(provetandre = recode(provetandre, !!!other_drugs_labels)) %>%
+  count(provetandre) %>%
+  rename(Response = provetandre, Frequency = n)
+
+# View the summary table
+other_drug_summary
+
+
+```
+
+Types of other drugs
+
+```{r}
+library(dplyr)
+library(tidyr)  # Load tidyr to use pivot_longer()
+
+# Define descriptive labels for each response to "Have you ever tried other drugs besides cannabis?"
+other_drugs_labels <- c(
+  "1" = "Yes, but only once",
+  "2" = "Yes, more than once",
+  "0" = "No, never"
+)
+
+# Define columns for specific types of other drugs tried
+other_drug_types_columns <- paste0("type_provetother___", 1:10)  # Adjust the range if needed
+
+# Define descriptive labels for each specific type of other drug
+other_drug_types_labels <- c(
+  "type_provetother___1" = "ADHD medication (e.g., Ritalin, Concerta)",
+  "type_provetother___2" = "Anxiolytics and/or sleeping pills (e.g., Benzodiazepines)",
+  "type_provetother___3" = "Amphetamine",
+  "type_provetother___4" = "Ecstasy/MDMA",
+  "type_provetother___5" = "Ketamine",
+  "type_provetother___6" = "Cocaine",
+  "type_provetother___7" = "Nitrous oxide",
+  "type_provetother___8" = "LSD, psilocybin mushrooms, or other psychedelics",
+  "type_provetother___9" = "Opioids/morphine preparations (Dolol, Oxycontin, Tramadol, Fentanyl, Heroin, etc.)",
+  "type_provetother___10" = "Other drugs {andet_othertype}"
+)
+
+# Summarize the general response for trying other drugs
+other_drug_summary <- eligible_data %>%
+  mutate(provetandre = as.character(provetandre)) %>%  # Convert to character for recoding
+  mutate(provetandre = recode(provetandre, !!!other_drugs_labels)) %>%
+  count(provetandre) %>%
+  rename(Response = provetandre, Frequency = n)
+
+# Summarize the frequency of each specific type of other drug tried
+other_drug_types_summary <- eligible_data %>%
+  summarise(across(all_of(other_drug_types_columns), ~ sum(. == 1, na.rm = TRUE))) %>%
+  pivot_longer(cols = everything(), names_to = "Drug_Type", values_to = "Frequency") %>%
+  # Apply descriptive labels
+  mutate(Drug_Type = recode(Drug_Type, !!!other_drug_types_labels))
+
+# View the general summary and specific drug types summary
+list(
+  General_Summary = other_drug_summary,
+  Specific_Drug_Types_Summary = other_drug_types_summary
+)
+
+
+
+
+```
+
+## Timeline followback
+
+```{r}
+
+
+```
+
+## MMM
+
+```{r}
+library(dplyr)
+
+
+# Calculate both sum and mean scores for each facet
+mmm_scores <- eligible_data %>%
+  mutate(
+    # Sum scores for each facet
+    coping_sum = rowSums(select(., ends_with("coping")), na.rm = TRUE),
+    social_sum = rowSums(select(., ends_with("social")), na.rm = TRUE),
+    enhancement_sum = rowSums(select(., ends_with("enhancement")), na.rm = TRUE),
+    conformity_sum = rowSums(select(., ends_with("conformity")), na.rm = TRUE),
+    expansion_sum = rowSums(select(., ends_with("expansion")), na.rm = TRUE),
+    
+    # Mean scores for each facet
+    coping_mean = rowMeans(select(., ends_with("coping")), na.rm = TRUE),
+    social_mean = rowMeans(select(., ends_with("social")), na.rm = TRUE),
+    enhancement_mean = rowMeans(select(., ends_with("enhancement")), na.rm = TRUE),
+    conformity_mean = rowMeans(select(., ends_with("conformity")), na.rm = TRUE),
+    expansion_mean = rowMeans(select(., ends_with("expansion")), na.rm = TRUE)
+  )
+
+# View the updated data with facet scores
+head(mmm_scores)
+
+```
+
+## Who-5
+
+```{r}
+library(dplyr)
+
+# Calculate WHO-5 raw and scaled scores
+who_scores <- eligible_data %>%
+  mutate(
+    # Sum the responses for the WHO-5 items
+    who_raw_score = rowSums(select(., starts_with("who_")), na.rm = TRUE),
+    # Scale the raw score to a 0-100 range by multiplying by 4
+    who_scaled_score = who_raw_score * 4
+  )
+
+# View the updated data with WHO-5 scores
+head(who_scores)
+
+```
+
+## Pittsburg
+
+```{r}
+
+
+```
+
+## PHQ-4
+
+```{r}
+library(dplyr)
+
+# Calculate PHQ-4, PHQ-2, GAD-2 scores, and the general mean for PHQ-4
+phq4_scores <- eligible_data %>%
+  mutate(
+    # Sum the first two items for PHQ-2 (depression subscale)
+    phq2_score = rowSums(select(., phq1, phq2), na.rm = TRUE),
+    # Sum the last two items for GAD-2 (anxiety subscale)
+    gad2_score = rowSums(select(., phq3, phq4), na.rm = TRUE),
+    # Sum all four items for the total PHQ-4 score
+    phq4_total_score = rowSums(select(., phq1, phq2, phq3, phq4), na.rm = TRUE),
+    # Calculate the mean score across all four PHQ-4 items
+    phq4_mean_score = rowMeans(select(., phq1, phq2, phq3, phq4), na.rm = TRUE)
+  )
+
+# View the updated data with PHQ-4, PHQ-2, GAD-2 scores, and the mean score
+head(phq4_scores)
+
+
+```
+
+## DERS-16
+
+```{r}
+library(dplyr)
+
+# Calculate DERS-16 total and facet scores
+ders_scores <- eligible_data %>%
+  mutate(
+    # Total DERS-16 score
+    ders_total_score = rowSums(select(., starts_with("ders_")), na.rm = TRUE),
+    
+    # Facet scores
+    clarity_score = rowSums(select(., ders_2, ders_4), na.rm = TRUE),
+    goals_score = rowSums(select(., ders_3, ders_6, ders_8), na.rm = TRUE),
+    impulse_score = rowSums(select(., ders_1, ders_7, ders_12), na.rm = TRUE),
+    strategies_score = rowSums(select(., ders_10, ders_13, ders_14, ders_16), na.rm = TRUE),
+    non_acceptance_score = rowSums(select(., ders_5, ders_9, ders_15), na.rm = TRUE),
+    awareness_score = rowSums(select(., ders_11), na.rm = TRUE)
+  )
+
+# View the updated data with DERS-16 total and facet scores
+head(ders_scores)
+
+```
+
+## DERS-P
+
+```{r}
+# Check which dersp_ columns have non-numeric values
+non_numeric_check <- eligible_data %>%
+  summarise(across(starts_with("dersp_"), ~ sum(!is.numeric(.)), .names = "non_numeric_{col}"))
+
+# View the check
+non_numeric_check
+
+```
+
+```{r}
+library(dplyr)
+
+# Convert non-numeric values in DERS item columns to NA, then calculate scores
+ders_positive_scores <- eligible_data %>%
+  # Convert only the exact DERS item columns (e.g., dersp_1, dersp_2, etc.) to numeric
+  mutate(across(matches("dersp_\\d+$"), ~ as.numeric(as.character(.)))) %>%
+  # Calculate total and subfacet scores
+  mutate(
+    # Total positive DERS score
+    dersp_total_score = rowSums(select(., matches("dersp_\\d+$")), na.rm = TRUE),
+    
+    # Subfacet scores for positive DERS
+    non_acceptance_positive_score = rowSums(select(., dersp_2, dersp_4, dersp_6, dersp_12), na.rm = TRUE),
+    goals_positive_score = rowSums(select(., dersp_1, dersp_7, dersp_9, dersp_11), na.rm = TRUE),
+    impulse_positive_score = rowSums(select(., dersp_3, dersp_5, dersp_8, dersp_10, dersp_13), na.rm = TRUE)
+  )
+
+# View the updated data with positive DERS total and subfacet scores
+head(ders_positive_scores)
+
+
+```
+
+## UPPS-P
+
+
+## 
+
+```{r}
+#| echo: false
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
