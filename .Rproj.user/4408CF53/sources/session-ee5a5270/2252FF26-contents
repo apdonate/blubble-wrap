@@ -60,7 +60,9 @@ baseline <- read.csv("data/EMA_Baseline.csv")
 entered <- n_distinct(baseline$id)
 ```
 
-## People who met the criteria
+## Criteria check
+
+Checking the participants who met the criteria for participating
 
 ```{r}
 
@@ -169,8 +171,6 @@ eligible_data <- eligible_data %>%
 print(class(eligible_data))  
 print(nrow(eligible_data))  
 ```
-
-
 
 ### Education
 
@@ -1174,7 +1174,6 @@ head(ders_positive_scores)
 ```
 
 ## UPPS-P
-
 
 ## 
 
