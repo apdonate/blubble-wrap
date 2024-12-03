@@ -2,37 +2,38 @@
 
 
 <!-- ABOUT THE PROJECT -->
-## Project Title: Cannabis use, Emotion and Emotion Dysregulation
+# Project Title: Cannabis use, Emotion and Emotion Dysregulation
 
-### Description
-This project is part of a larger study of ESM among people who use cannabis heavily. The project conducted by APGD at CRF in Aarhus University. 
-The data collection has 
+## Table of Contents
 
-### Motivation
+1. [Description](#description)
+2. [Installation](#installation)
+3. [Usage](#usage)
+4. [Contributing](#contributing)
+5. [License](#license)
 
+## Description
 
-### Getting started
-## Prerequisites
+This project is a tool for analyzing data collected from an experiment involving participants' who use cannabis almost daily. 
 
+## Installation
+### Prerequisites
+Before you can run the project, make sure you have the following installed:
 
-## Installing
+- R (for data analysis)
+- Required R packages: "dplyr", "readr", "readxl", "haven", "writexl", "tidyverse".
 
+## Usage
 
-## License
-
-
-## Authors & Contact
+## Contributing
 Ana Paula Goncalves Donate - apd.crf@psy.au.dk
 
-## Version History
-
-## Recommended citation
-
-## 
+## License
+??
 
 
 
-## Acknowledgements
+
 
 
 
